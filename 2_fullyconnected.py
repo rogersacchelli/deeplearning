@@ -219,11 +219,6 @@ with graph.as_default():
     print ('shapes w: %s' % str(weights_relu.get_shape()))
     print ('shapes b: %s' % str(biases_relu.get_shape()))
 
-
-    def forward_prop(inp):
-        h1 = tf.nn.relu(tf.matmul(inp, weights_relu) + biases_relu)
-        return tf.matmul(h1, weights_out) + biases
-
     relu_train = tf.nn.relu(tf.matmul(tf_train_dataset,weights_relu) + biases_relu)
     relu_valid = tf.nn.relu(tf.matmul(tf_valid_dataset,weights_relu) + biases_relu)
     relu_test = tf.nn.relu(tf.matmul(tf_test_dataset,weights_relu) + biases_relu)
