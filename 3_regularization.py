@@ -39,20 +39,13 @@ def accuracy(predictions, labels):
   return (100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1))
           / predictions.shape[0])
 
-batch_size = 128
+batch_size = 192
 
-'''
 
-Problem 1
-Introduce and tune L2 regularization for both logistic and neural network models.
-Remember that L2 amounts to adding a penalty on the norm of the weights to the loss.
-In TensorFlow, you can compute the L2 loss for a tensor t using nn.l2_loss(t).
-The right amount of regularization should improve your validation / test accuracy.
-'''
 
 NODES = 1024
 train_subset = 10000
-beta = 0.005
+beta = 0.003
 
 graph = tf.Graph()
 
@@ -64,39 +57,91 @@ with graph.as_default():
     tf_valid_dataset = tf.constant(valid_dataset)
     tf_test_dataset = tf.constant(test_dataset)
 
-    weights_relu = tf.Variable(
+    weights_0 = tf.Variable(
         tf.truncated_normal([image_size * image_size, NODES]))
-    biases_relu = tf.Variable(tf.zeros([NODES]))
-    biases = tf.Variable(tf.zeros([num_labels]))
+    biases_0 = tf.Variable(tf.zeros([NODES]))
 
-    print ('shapes w: %s' % str(weights_relu.get_shape()))
-    print ('shapes b: %s' % str(biases_relu.get_shape()))
+    print ('shapes w: %s' % str(weights_0.get_shape()))
+    print ('shapes b: %s' % str(biases_0.get_shape()))
 
-    relu_train = tf.nn.relu(tf.matmul(tf_train_dataset,weights_relu) + biases_relu)
+    relu_train = tf.nn.relu(tf.matmul(tf_train_dataset,weights_0) + biases_0)
+    relu_train_0 = tf.nn.relu(tf.matmul(tf_train_dataset,weights_0) + biases_0)
+
+    '''
+    Problem 3
+    Introduce Dropout on the hidden layer of the neural network.
+    Remember: Dropout should only be introduced during training, not evaluation,
+    otherwise your evaluation results would be stochastic as well.
+    TensorFlow provides nn.dropout() for that, but you have to make sure it's only inserted during training.
+    What happens to our extreme overfitting case?
+
+    '''
+
     relu_train = tf.nn.dropout(relu_train,0.9)
-    relu_valid = tf.nn.relu(tf.matmul(tf_valid_dataset,weights_relu) + biases_relu)
-    relu_test = tf.nn.relu(tf.matmul(tf_test_dataset,weights_relu) + biases_relu)
+    relu_valid = tf.nn.relu(tf.matmul(tf_valid_dataset,weights_0) + biases_0)
+    relu_test = tf.nn.relu(tf.matmul(tf_test_dataset,weights_0) + biases_0)
 
-    weights_out = tf.Variable(
-        tf.truncated_normal([NODES,num_labels ]))
+    relu_train_0 = tf.nn.dropout(relu_train_0, 0.9)
+    relu_valid_0 = tf.nn.relu(tf.matmul(tf_valid_dataset, weights_0) + biases_0)
+    relu_test_0 = tf.nn.relu(tf.matmul(tf_test_dataset, weights_0) + biases_0)
 
-    logits_train = tf.matmul(relu_train,weights_out) + biases
-    logits_valid = tf.matmul(relu_valid,weights_out) + biases
-    logits_test = tf.matmul(relu_test,weights_out) + biases
+    weights_1 = tf.Variable(
+        tf.truncated_normal([image_size*image_size,NODES]))
+
+    biases_1 = tf.Variable(tf.zeros([NODES]))
+
+    relu_train_1 = tf.nn.relu(tf.matmul(tf_train_dataset, weights_1) + biases_1)
+
+    relu_train_1 = tf.nn.dropout(relu_train_1, 0.9)
+    relu_valid_1 = tf.nn.relu(tf.matmul(tf_valid_dataset, weights_1) + biases_1)
+    relu_test_1 = tf.nn.relu(tf.matmul(tf_test_dataset, weights_1) + biases_1)
+
+    weights_2 = tf.Variable(
+        tf.truncated_normal([NODES,num_labels]))
+
+    biases_2 = tf.Variable(tf.zeros([num_labels]))
+
+    logits_train = tf.matmul(relu_train_1, weights_2) + biases_2
+    logits_valid = tf.matmul(relu_valid_1, weights_2) + biases_2
+    logits_test = tf.matmul(relu_test_1, weights_2) + biases_2
 
     loss = tf.reduce_mean(
         tf.nn.softmax_cross_entropy_with_logits(logits_train, tf_train_labels))
 
-    loss = loss + (beta/2)*(tf.nn.l2_loss(weights_relu)+tf.nn.l2_loss(weights_out))
+    '''
+    Problem 1
+    Introduce and tune L2 regularization for both logistic and neural network models.
+    Remember that L2 amounts to adding a penalty on the norm of the weights to the loss.
+    In TensorFlow, you can compute the L2 loss for a tensor t using nn.l2_loss(t).
+    The right amount of regularization should improve your validation / test accuracy.
+    '''
 
-    optimizer = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
+    loss = loss + (beta/2)*(tf.nn.l2_loss(weights_0)+tf.nn.l2_loss(weights_1)+tf.nn.l2_loss(weights_2))
+
+    '''
+    Problem 4
+    Try to get the best performance you can using a multi-layer model!
+    The best reported test accuracy using a deep network is 97.1%.
+    One avenue you can explore is to add multiple layers.
+    Another one is to use learning rate decay:
+    global_step = tf.Variable(0)  # count the number of steps taken.
+    learning_rate = tf.train.exponential_decay(0.5, global_step, ...)
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss, global_step=global_step)
+    '''
+
+    global_step = tf.Variable(0,trainable=False)
+    start_learning_rate = 0.9
+
+    leaning_rate = tf.train.exponential_decay(start_learning_rate,global_step=global_step,decay_steps=50,decay_rate=0.01,staircase=True)
+
+    optimizer = tf.train.GradientDescentOptimizer(leaning_rate).minimize(loss)
 
     train_prediction = tf.nn.softmax(logits_train)
     valid_prediction = tf.nn.softmax(logits_valid)
     test_prediction = tf.nn.softmax(logits_test)
 
 
-num_steps = 5001
+num_steps = 4501
 
 with tf.Session(graph=graph) as session:
   tf.initialize_all_variables().run()
@@ -129,24 +174,5 @@ Let's demonstrate an extreme case of overfitting.
 Restrict your training data to just a few batches. What happens?
 '''
 
-'''
-Problem 3
-Introduce Dropout on the hidden layer of the neural network.
-Remember: Dropout should only be introduced during training, not evaluation,
-otherwise your evaluation results would be stochastic as well.
-TensorFlow provides nn.dropout() for that, but you have to make sure it's only inserted during training.
-What happens to our extreme overfitting case?
-
-'''
 
 
-'''
-Problem 4
-Try to get the best performance you can using a multi-layer model!
-The best reported test accuracy using a deep network is 97.1%.
-One avenue you can explore is to add multiple layers.
-Another one is to use learning rate decay:
-global_step = tf.Variable(0)  # count the number of steps taken.
-learning_rate = tf.train.exponential_decay(0.5, global_step, ...)
-optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss, global_step=global_step)
-'''
